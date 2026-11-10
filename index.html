@@ -1,8 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta
+        name="description"
+        content="Portfolio of Alan Besnard, an automotive engineering student at ESTACA focused on mechanical design, CAD, FEA and vehicle development."
+    >
 
     <title>Alan Besnard | Automotive Engineering Portfolio</title>
 
@@ -11,23 +17,53 @@
 
 <body>
 
+    <!-- Scroll progress indicator -->
+    <div class="scroll-progress" aria-hidden="true">
+        <div class="scroll-progress__bar"></div>
+    </div>
+
+    <!-- Custom cursor -->
+    <div class="cursor-dot" aria-hidden="true"></div>
+    <div class="cursor-ring" aria-hidden="true"></div>
+
+    <!-- Navigation -->
     <header>
-        <nav>
-            <a href="#home">Alan Besnard</a>
+        <nav aria-label="Main navigation">
+
+            <a href="#home" aria-label="Go to homepage">
+                Alan Besnard
+            </a>
 
             <ul>
-                <li><a href="#about">About</a></li>
-                <li><a href="#projects">Projects</a></li>
-                <li><a href="#skills">Skills</a></li>
-                <li><a href="#experience">Experience</a></li>
-                <li><a href="#contact">Contact</a></li>
+                <li>
+                    <a href="#about">About</a>
+                </li>
+
+                <li>
+                    <a href="#projects">Projects</a>
+                </li>
+
+                <li>
+                    <a href="#skills">Skills</a>
+                </li>
+
+                <li>
+                    <a href="#experience">Experience</a>
+                </li>
+
+                <li>
+                    <a href="#contact">Contact</a>
+                </li>
             </ul>
+
         </nav>
     </header>
 
     <main>
 
+        <!-- Hero section -->
         <section id="home">
+
             <p>Automotive Engineering Student</p>
 
             <h1>
@@ -39,94 +75,159 @@
                 focused on mechanical design, CAD and vehicle development.
             </p>
 
-            <a href="#projects">Explore my projects</a>
-            <a href="#contact">Contact me</a>
+            <div class="hero-actions">
+                <a href="#projects">Explore my projects</a>
+                <a href="#contact">Contact me</a>
+            </div>
+
+            <div class="hero-data" aria-hidden="true">
+                <span>LAV / FR</span>
+                <span>48.058° N</span>
+                <span>00.768° W</span>
+            </div>
+
+            <div class="scroll-indicator" aria-hidden="true">
+                <span>Scroll to explore</span>
+                <div class="scroll-indicator__line"></div>
+            </div>
+
         </section>
 
+        <!-- About section -->
         <section id="about">
-            <h2>About me</h2>
+
+            <h2 data-index="01">About me</h2>
 
             <p>
                 I am an automotive engineering student with a strong interest
-                in mechanical design, vehicle development and numerical simulation.
+                in mechanical design, vehicle development and numerical
+                simulation. I enjoy transforming technical challenges into
+                efficient and realistic engineering solutions.
             </p>
+
         </section>
 
+        <!-- Projects section -->
         <section id="projects">
-            <h2>Selected projects</h2>
+
+            <h2 data-index="02">Selected projects</h2>
 
             <article>
                 <h3>REvolt</h3>
+
                 <p>
                     Development of an electric single-seater concept based on
-                    a Formula Renault 1.6 platform.
+                    a Formula Renault 1.6 platform, including battery packaging,
+                    electrical architecture and vehicle integration.
                 </p>
-                <a href="#">View project</a>
+
+                <a href="#" aria-label="Discover the REvolt project">
+                    View project
+                </a>
             </article>
 
             <article>
                 <h3>Project RED</h3>
+
                 <p>
-                    Engineering development of a BMW E30 316 for participation
-                    in the Dakar Classic.
+                    Engineering development of a BMW E30 316 prepared for the
+                    Dakar Classic, including suspension adaptation, running
+                    gear modelling and structural analysis.
                 </p>
-                <a href="#">View project</a>
+
+                <a href="#" aria-label="Discover Project RED">
+                    View project
+                </a>
             </article>
 
             <article>
                 <h3>IMOCA Project</h3>
+
                 <p>
                     Design and simulation of an IMOCA scale model, including
-                    an initial CFD study using SolidWorks Simulation.
+                    an initial computational fluid dynamics study using
+                    SolidWorks Simulation.
                 </p>
-                <a href="#">View project</a>
+
+                <a href="#" aria-label="Discover the IMOCA project">
+                    View project
+                </a>
             </article>
+
         </section>
 
+        <!-- Skills section -->
         <section id="skills">
-            <h2>Technical skills</h2>
+
+            <h2 data-index="03">Technical skills</h2>
 
             <ul>
                 <li>SolidWorks</li>
                 <li>CATIA</li>
                 <li>Mechanical design</li>
-                <li>FEA</li>
-                <li>CFD</li>
+                <li>Finite Element Analysis</li>
+                <li>Computational Fluid Dynamics</li>
                 <li>HTML, CSS and JavaScript</li>
             </ul>
+
         </section>
 
+        <!-- Experience section -->
         <section id="experience">
-            <h2>Experience</h2>
+
+            <h2 data-index="04">Experience</h2>
 
             <article>
                 <h3>Ligier Advanced Technologies</h3>
-                <p>Engineering internship</p>
+
+                <p>
+                    Engineering internship focused on automotive engineering
+                    and the development of technical solutions.
+                </p>
             </article>
 
             <article>
                 <h3>ESTACA</h3>
-                <p>Automotive Engineering programme</p>
+
+                <p>
+                    Fourth-year student in the Automotive Engineering
+                    programme, developing skills in mechanical design,
+                    simulation and vehicle engineering.
+                </p>
             </article>
+
         </section>
 
+        <!-- Contact section -->
         <section id="contact">
-            <h2>Let's work together</h2>
+
+            <h2 data-index="05">Let's work together</h2>
 
             <p>
                 I am interested in opportunities related to mechanical design,
-                CAD, FEA and vehicle engineering.
+                CAD, FEA and vehicle engineering. Feel free to contact me to
+                discuss an internship, an engineering project or a potential
+                collaboration.
             </p>
 
-            <a href="mailto:alan.besnard@estaca.eu">Send me an email</a>
+            <a href="mailto:alan.besnard@estaca.eu">
+                Send me an email
+            </a>
+
         </section>
 
     </main>
 
+    <!-- Footer -->
     <footer>
-        <p>© <span id="current-year"></span> Alan Besnard. All rights reserved.</p>
+        <p>
+            © <span id="current-year"></span>
+            Alan Besnard. All rights reserved.
+        </p>
     </footer>
 
     <script src="script.js"></script>
+
 </body>
+
 </html>
