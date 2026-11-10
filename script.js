@@ -413,7 +413,7 @@ if (precisePointer && !reducedMotion) {
 
 
 /* =========================================================
-   CAD WIREFRAME VIEWPORT
+   FORMULA CAR 3D WIREFRAME
    ========================================================= */
 
 const cadViewport = document.querySelector("#cad-visual");
@@ -426,8 +426,8 @@ if (canvas && cadViewport) {
     let height = 0;
     let pixelRatio = 1;
 
-    let rotationX = -0.52;
-    let rotationY = 0.65;
+    let rotationX = -0.26;
+    let rotationY = -0.72;
 
     let targetRotationX = rotationX;
     let targetRotationY = rotationY;
@@ -435,6 +435,18 @@ if (canvas && cadViewport) {
     let pointerInside = false;
     let lastTime = performance.now();
 
+    const COLORS = {
+        primary: [117, 216, 255],
+        secondary: [73, 139, 168],
+        accent: [226, 59, 69],
+        neutral: [220, 228, 232],
+        dark: [52, 81, 94]
+    };
+
+
+    /* -----------------------------------------------------
+       CANVAS RESIZE
+       ----------------------------------------------------- */
 
     function resizeCanvas() {
         const bounds = cadViewport.getBoundingClientRect();
@@ -464,33 +476,37 @@ if (canvas && cadViewport) {
     }
 
 
+    /* -----------------------------------------------------
+       3D TRANSFORMATIONS
+       ----------------------------------------------------- */
+
     function rotatePoint(point) {
         const cosY = Math.cos(rotationY);
         const sinY = Math.sin(rotationY);
 
-        const xAfterY =
+        const rotatedX =
             point.x * cosY -
             point.z * sinY;
 
-        const zAfterY =
+        const rotatedZ =
             point.x * sinY +
             point.z * cosY;
 
         const cosX = Math.cos(rotationX);
         const sinX = Math.sin(rotationX);
 
-        const yAfterX =
+        const rotatedY =
             point.y * cosX -
-            zAfterY * sinX;
+            rotatedZ * sinX;
 
-        const zAfterX =
+        const finalZ =
             point.y * sinX +
-            zAfterY * cosX;
+            rotatedZ * cosX;
 
         return {
-            x: xAfterY,
-            y: yAfterX,
-            z: zAfterX
+            x: rotatedX,
+            y: rotatedY,
+            z: finalZ
         };
     }
 
@@ -498,13 +514,14 @@ if (canvas && cadViewport) {
     function projectPoint(point) {
         const rotated = rotatePoint(point);
 
-        const cameraDistance = 5.6;
+        const cameraDistance = 12;
+
         const perspective =
             cameraDistance /
-            (cameraDistance + rotated.z);
+            Math.max(cameraDistance + rotated.z, 1);
 
         const scale =
-            Math.min(width, height) * 0.19;
+            Math.min(width, height) * 0.115;
 
         return {
             x:
@@ -522,134 +539,338 @@ if (canvas && cadViewport) {
     }
 
 
+    function makeColor(rgb, opacity) {
+        return `rgba(
+            ${rgb[0]},
+            ${rgb[1]},
+            ${rgb[2]},
+            ${opacity}
+        )`;
+    }
+
+
+    function calculateDepthOpacity(first, second) {
+        const averageDepth =
+            (first.z + second.z) / 2;
+
+        return Math.max(
+            0.16,
+            Math.min(
+                0.95,
+                0.72 - averageDepth * 0.045
+            )
+        );
+    }
+
+
+    /* -----------------------------------------------------
+       DRAWING PRIMITIVES
+       ----------------------------------------------------- */
+
     function drawLine(
         firstPoint,
         secondPoint,
-        color,
+        color = COLORS.primary,
         lineWidth = 1
     ) {
         const first = projectPoint(firstPoint);
         const second = projectPoint(secondPoint);
 
-        const depthOpacity =
-            Math.max(
-                0.22,
-                Math.min(
-                    1,
-                    0.75 -
-                    ((first.z + second.z) / 2) * 0.08
-                )
-            );
+        const opacity =
+            calculateDepthOpacity(first, second);
 
         context.beginPath();
         context.moveTo(first.x, first.y);
         context.lineTo(second.x, second.y);
 
-        context.strokeStyle = color.replace(
-            "OPACITY",
-            depthOpacity.toFixed(2)
-        );
+        context.strokeStyle =
+            makeColor(color, opacity);
 
         context.lineWidth = lineWidth;
         context.stroke();
     }
 
 
-    function createRing(radius, depth, segments = 42) {
+    function drawPolyline(
+        points,
+        color = COLORS.primary,
+        lineWidth = 1,
+        closed = false
+    ) {
+        if (points.length < 2) {
+            return;
+        }
+
+        const projectedPoints =
+            points.map(projectPoint);
+
+        context.beginPath();
+
+        context.moveTo(
+            projectedPoints[0].x,
+            projectedPoints[0].y
+        );
+
+        for (
+            let index = 1;
+            index < projectedPoints.length;
+            index += 1
+        ) {
+            context.lineTo(
+                projectedPoints[index].x,
+                projectedPoints[index].y
+            );
+        }
+
+        if (closed) {
+            context.closePath();
+        }
+
+        const averageDepth =
+            projectedPoints.reduce(
+                (total, point) => total + point.z,
+                0
+            ) / projectedPoints.length;
+
+        const opacity = Math.max(
+            0.18,
+            Math.min(
+                0.95,
+                0.72 - averageDepth * 0.045
+            )
+        );
+
+        context.strokeStyle =
+            makeColor(color, opacity);
+
+        context.lineWidth = lineWidth;
+        context.stroke();
+    }
+
+
+    function createCircle(
+        center,
+        radius,
+        plane = "xy",
+        segments = 30
+    ) {
         const points = [];
 
-        for (let index = 0; index < segments; index += 1) {
+        for (
+            let index = 0;
+            index < segments;
+            index += 1
+        ) {
             const angle =
-                (index / segments) *
+                index / segments *
                 Math.PI *
                 2;
 
-            points.push({
-                x: Math.cos(angle) * radius,
-                y: Math.sin(angle) * radius,
-                z: depth
-            });
+            let point;
+
+            if (plane === "xy") {
+                point = {
+                    x: center.x + Math.cos(angle) * radius,
+                    y: center.y + Math.sin(angle) * radius,
+                    z: center.z
+                };
+            } else if (plane === "yz") {
+                point = {
+                    x: center.x,
+                    y: center.y + Math.cos(angle) * radius,
+                    z: center.z + Math.sin(angle) * radius
+                };
+            } else {
+                point = {
+                    x: center.x + Math.cos(angle) * radius,
+                    y: center.y,
+                    z: center.z + Math.sin(angle) * radius
+                };
+            }
+
+            points.push(point);
         }
 
         return points;
     }
 
 
-    function drawRing(points, color, lineWidth = 1) {
-        for (
-            let index = 0;
-            index < points.length;
-            index += 1
-        ) {
-            const nextIndex =
-                (index + 1) % points.length;
+    function drawCircle(
+        center,
+        radius,
+        plane,
+        color,
+        lineWidth = 1,
+        segments = 30
+    ) {
+        const points = createCircle(
+            center,
+            radius,
+            plane,
+            segments
+        );
 
-            drawLine(
-                points[index],
-                points[nextIndex],
-                color,
-                lineWidth
-            );
-        }
+        drawPolyline(
+            points,
+            color,
+            lineWidth,
+            true
+        );
     }
 
 
-    function drawAssembly() {
-        const frontOuter = createRing(1.55, -0.48);
-        const rearOuter = createRing(1.55, 0.48);
+    function drawBox(
+        center,
+        size,
+        color = COLORS.primary,
+        lineWidth = 1
+    ) {
+        const halfX = size.x / 2;
+        const halfY = size.y / 2;
+        const halfZ = size.z / 2;
 
-        const frontInner = createRing(0.68, -0.58);
-        const rearInner = createRing(0.68, 0.58);
+        const vertices = [
+            {
+                x: center.x - halfX,
+                y: center.y - halfY,
+                z: center.z - halfZ
+            },
+            {
+                x: center.x + halfX,
+                y: center.y - halfY,
+                z: center.z - halfZ
+            },
+            {
+                x: center.x + halfX,
+                y: center.y + halfY,
+                z: center.z - halfZ
+            },
+            {
+                x: center.x - halfX,
+                y: center.y + halfY,
+                z: center.z - halfZ
+            },
+            {
+                x: center.x - halfX,
+                y: center.y - halfY,
+                z: center.z + halfZ
+            },
+            {
+                x: center.x + halfX,
+                y: center.y - halfY,
+                z: center.z + halfZ
+            },
+            {
+                x: center.x + halfX,
+                y: center.y + halfY,
+                z: center.z + halfZ
+            },
+            {
+                x: center.x - halfX,
+                y: center.y + halfY,
+                z: center.z + halfZ
+            }
+        ];
 
-        const hubFront = createRing(0.28, -0.85, 28);
-        const hubRear = createRing(0.28, 0.85, 28);
+        const edges = [
+            [0, 1],
+            [1, 2],
+            [2, 3],
+            [3, 0],
 
-        const blue =
-            "rgba(117, 216, 255, OPACITY)";
+            [4, 5],
+            [5, 6],
+            [6, 7],
+            [7, 4],
 
-        const softBlue =
-            "rgba(117, 216, 255, OPACITY)";
+            [0, 4],
+            [1, 5],
+            [2, 6],
+            [3, 7]
+        ];
 
-        const red =
-            "rgba(226, 59, 69, OPACITY)";
-
-
-        drawRing(rearOuter, softBlue);
-        drawRing(rearInner, softBlue);
-        drawRing(hubRear, red, 1.2);
-
-        drawRing(frontOuter, blue, 1.15);
-        drawRing(frontInner, blue);
-        drawRing(hubFront, red, 1.2);
-
-
-        for (
-            let index = 0;
-            index < frontOuter.length;
-            index += 6
-        ) {
+        edges.forEach(([firstIndex, secondIndex]) => {
             drawLine(
-                frontOuter[index],
-                rearOuter[index],
-                softBlue
+                vertices[firstIndex],
+                vertices[secondIndex],
+                color,
+                lineWidth
             );
-        }
+        });
+    }
 
 
-        for (
-            let index = 0;
-            index < frontInner.length;
-            index += 7
-        ) {
-            drawLine(
-                frontInner[index],
-                rearInner[index],
-                softBlue
-            );
-        }
+    /* -----------------------------------------------------
+       FORMULA CAR WHEELS
+       x = longitudinal axis
+       y = vertical axis
+       z = transverse axis
+       ----------------------------------------------------- */
 
+    function drawWheel(x, z, frontWheel) {
+        const radius =
+            frontWheel ? 0.72 : 0.78;
 
-        const spokeCount = 8;
+        const width =
+            frontWheel ? 0.46 : 0.55;
+
+        const outerZ =
+            z + Math.sign(z) * width / 2;
+
+        const innerZ =
+            z - Math.sign(z) * width / 2;
+
+        const centerY = 0.74;
+
+        const outerCenter = {
+            x,
+            y: centerY,
+            z: outerZ
+        };
+
+        const innerCenter = {
+            x,
+            y: centerY,
+            z: innerZ
+        };
+
+        drawCircle(
+            outerCenter,
+            radius,
+            "xy",
+            COLORS.primary,
+            1.35,
+            34
+        );
+
+        drawCircle(
+            innerCenter,
+            radius,
+            "xy",
+            COLORS.secondary,
+            0.85,
+            34
+        );
+
+        drawCircle(
+            outerCenter,
+            radius * 0.58,
+            "xy",
+            COLORS.accent,
+            1.05,
+            28
+        );
+
+        drawCircle(
+            outerCenter,
+            radius * 0.21,
+            "xy",
+            COLORS.neutral,
+            1,
+            22
+        );
+
+        const spokeCount = 10;
 
         for (
             let index = 0;
@@ -657,104 +878,807 @@ if (canvas && cadViewport) {
             index += 1
         ) {
             const angle =
-                (index / spokeCount) *
+                index / spokeCount *
                 Math.PI *
                 2;
 
-            const nextAngle =
-                angle + Math.PI / 10;
-
             drawLine(
                 {
-                    x: Math.cos(angle) * 0.3,
-                    y: Math.sin(angle) * 0.3,
-                    z: -0.62
-                },
-                {
-                    x: Math.cos(nextAngle) * 1.5,
-                    y: Math.sin(nextAngle) * 1.5,
-                    z: -0.46
-                },
-                blue,
-                1.1
-            );
+                    x:
+                        x +
+                        Math.cos(angle) *
+                        radius *
+                        0.23,
 
-            drawLine(
-                {
-                    x: Math.cos(angle) * 0.3,
-                    y: Math.sin(angle) * 0.3,
-                    z: 0.62
+                    y:
+                        centerY +
+                        Math.sin(angle) *
+                        radius *
+                        0.23,
+
+                    z: outerZ
                 },
                 {
-                    x: Math.cos(nextAngle) * 1.5,
-                    y: Math.sin(nextAngle) * 1.5,
-                    z: 0.46
+                    x:
+                        x +
+                        Math.cos(angle) *
+                        radius *
+                        0.55,
+
+                    y:
+                        centerY +
+                        Math.sin(angle) *
+                        radius *
+                        0.55,
+
+                    z: outerZ
                 },
-                softBlue
+                COLORS.primary,
+                0.75
             );
         }
-
 
         for (
             let index = 0;
-            index < hubFront.length;
-            index += 4
+            index < 34;
+            index += 5
         ) {
+            const angle =
+                index / 34 *
+                Math.PI *
+                2;
+
             drawLine(
-                hubFront[index],
-                hubRear[index],
-                red,
-                1.1
+                {
+                    x:
+                        x +
+                        Math.cos(angle) *
+                        radius,
+
+                    y:
+                        centerY +
+                        Math.sin(angle) *
+                        radius,
+
+                    z: outerZ
+                },
+                {
+                    x:
+                        x +
+                        Math.cos(angle) *
+                        radius,
+
+                    y:
+                        centerY +
+                        Math.sin(angle) *
+                        radius,
+
+                    z: innerZ
+                },
+                COLORS.dark,
+                0.8
             );
         }
+    }
 
 
-        drawLine(
-            { x: -2.2, y: 0, z: 0 },
-            { x: 2.2, y: 0, z: 0 },
-            "rgba(226, 59, 69, OPACITY)",
+    /* -----------------------------------------------------
+       MAIN BODY
+       ----------------------------------------------------- */
+
+    function drawBody() {
+        const centerLineTop = [
+            { x: -4.5, y: 0.58, z: 0 },
+            { x: -3.3, y: 0.48, z: 0 },
+            { x: -2.0, y: 0.42, z: 0 },
+            { x: -0.8, y: 0.35, z: 0 },
+            { x: 0.2, y: 0.15, z: 0 },
+            { x: 1.15, y: -0.28, z: 0 },
+            { x: 2.25, y: -0.42, z: 0 },
+            { x: 3.3, y: -0.32, z: 0 },
+            { x: 4.1, y: 0.05, z: 0 }
+        ];
+
+        drawPolyline(
+            centerLineTop,
+            COLORS.primary,
+            1.4
+        );
+
+        const bodySections = [
+            {
+                x: -3.85,
+                y: 0.48,
+                halfWidth: 0.17,
+                halfHeight: 0.13
+            },
+            {
+                x: -2.8,
+                y: 0.38,
+                halfWidth: 0.26,
+                halfHeight: 0.16
+            },
+            {
+                x: -1.7,
+                y: 0.25,
+                halfWidth: 0.43,
+                halfHeight: 0.22
+            },
+            {
+                x: -0.65,
+                y: 0.14,
+                halfWidth: 0.68,
+                halfHeight: 0.31
+            },
+            {
+                x: 0.45,
+                y: -0.12,
+                halfWidth: 0.78,
+                halfHeight: 0.4
+            },
+            {
+                x: 1.45,
+                y: -0.29,
+                halfWidth: 0.72,
+                halfHeight: 0.42
+            },
+            {
+                x: 2.4,
+                y: -0.27,
+                halfWidth: 0.58,
+                halfHeight: 0.4
+            },
+            {
+                x: 3.35,
+                y: -0.08,
+                halfWidth: 0.37,
+                halfHeight: 0.3
+            }
+        ];
+
+        const sectionCorners = bodySections.map(
+            (section) => ({
+                upperLeft: {
+                    x: section.x,
+                    y: section.y - section.halfHeight,
+                    z: -section.halfWidth
+                },
+                upperRight: {
+                    x: section.x,
+                    y: section.y - section.halfHeight,
+                    z: section.halfWidth
+                },
+                lowerLeft: {
+                    x: section.x,
+                    y: section.y + section.halfHeight,
+                    z: -section.halfWidth
+                },
+                lowerRight: {
+                    x: section.x,
+                    y: section.y + section.halfHeight,
+                    z: section.halfWidth
+                }
+            })
+        );
+
+        sectionCorners.forEach((section) => {
+            drawPolyline(
+                [
+                    section.upperLeft,
+                    section.upperRight,
+                    section.lowerRight,
+                    section.lowerLeft
+                ],
+                COLORS.secondary,
+                0.75,
+                true
+            );
+        });
+
+        for (
+            let index = 0;
+            index < sectionCorners.length - 1;
+            index += 1
+        ) {
+            const current = sectionCorners[index];
+            const next = sectionCorners[index + 1];
+
+            drawLine(
+                current.upperLeft,
+                next.upperLeft,
+                COLORS.primary,
+                1
+            );
+
+            drawLine(
+                current.upperRight,
+                next.upperRight,
+                COLORS.primary,
+                1
+            );
+
+            drawLine(
+                current.lowerLeft,
+                next.lowerLeft,
+                COLORS.secondary,
+                0.8
+            );
+
+            drawLine(
+                current.lowerRight,
+                next.lowerRight,
+                COLORS.secondary,
+                0.8
+            );
+        }
+    }
+
+
+    /* -----------------------------------------------------
+       FRONT WING
+       ----------------------------------------------------- */
+
+    function drawFrontWing() {
+        const wingX = -4.55;
+
+        const mainPlane = [
+            { x: wingX - 0.28, y: 0.7, z: -1.72 },
+            { x: wingX + 0.28, y: 0.7, z: -1.72 },
+            { x: wingX + 0.42, y: 0.7, z: 1.72 },
+            { x: wingX - 0.28, y: 0.7, z: 1.72 }
+        ];
+
+        drawPolyline(
+            mainPlane,
+            COLORS.primary,
+            1.2,
+            true
+        );
+
+        const secondaryPlane = [
+            { x: wingX + 0.18, y: 0.54, z: -1.52 },
+            { x: wingX + 0.52, y: 0.54, z: -1.52 },
+            { x: wingX + 0.6, y: 0.54, z: 1.52 },
+            { x: wingX + 0.18, y: 0.54, z: 1.52 }
+        ];
+
+        drawPolyline(
+            secondaryPlane,
+            COLORS.secondary,
+            0.9,
+            true
+        );
+
+        drawBox(
+            {
+                x: wingX,
+                y: 0.45,
+                z: -1.69
+            },
+            {
+                x: 0.18,
+                y: 0.75,
+                z: 0.1
+            },
+            COLORS.accent,
+            1
+        );
+
+        drawBox(
+            {
+                x: wingX,
+                y: 0.45,
+                z: 1.69
+            },
+            {
+                x: 0.18,
+                y: 0.75,
+                z: 0.1
+            },
+            COLORS.accent,
             1
         );
 
         drawLine(
-            { x: 0, y: -2.2, z: 0 },
-            { x: 0, y: 2.2, z: 0 },
-            "rgba(117, 216, 255, OPACITY)",
-            1
-        );
-
-        drawLine(
-            { x: 0, y: 0, z: -2.2 },
-            { x: 0, y: 0, z: 2.2 },
-            "rgba(255, 255, 255, OPACITY)",
+            { x: -4.2, y: 0.58, z: 0 },
+            { x: wingX, y: 0.64, z: 0 },
+            COLORS.neutral,
             1
         );
     }
 
 
+    /* -----------------------------------------------------
+       REAR WING
+       ----------------------------------------------------- */
+
+    function drawRearWing() {
+        const rearX = 3.82;
+
+        drawBox(
+            {
+                x: rearX,
+                y: -0.95,
+                z: 0
+            },
+            {
+                x: 0.42,
+                y: 0.14,
+                z: 2.55
+            },
+            COLORS.primary,
+            1.2
+        );
+
+        drawBox(
+            {
+                x: rearX + 0.15,
+                y: -0.65,
+                z: 0
+            },
+            {
+                x: 0.35,
+                y: 0.12,
+                z: 2.3
+            },
+            COLORS.secondary,
+            0.95
+        );
+
+        drawBox(
+            {
+                x: rearX,
+                y: -0.58,
+                z: -1.28
+            },
+            {
+                x: 0.46,
+                y: 0.95,
+                z: 0.08
+            },
+            COLORS.accent,
+            1
+        );
+
+        drawBox(
+            {
+                x: rearX,
+                y: -0.58,
+                z: 1.28
+            },
+            {
+                x: 0.46,
+                y: 0.95,
+                z: 0.08
+            },
+            COLORS.accent,
+            1
+        );
+
+        drawLine(
+            { x: 3.25, y: -0.1, z: -0.38 },
+            { x: rearX, y: -0.65, z: -0.55 },
+            COLORS.neutral,
+            1
+        );
+
+        drawLine(
+            { x: 3.25, y: -0.1, z: 0.38 },
+            { x: rearX, y: -0.65, z: 0.55 },
+            COLORS.neutral,
+            1
+        );
+    }
+
+
+    /* -----------------------------------------------------
+       FLOOR AND DIFFUSER
+       ----------------------------------------------------- */
+
+    function drawFloor() {
+        const floorOutline = [
+            { x: -1.75, y: 0.62, z: -0.74 },
+            { x: 2.75, y: 0.62, z: -0.82 },
+            { x: 3.55, y: 0.48, z: -0.66 },
+            { x: 3.55, y: 0.48, z: 0.66 },
+            { x: 2.75, y: 0.62, z: 0.82 },
+            { x: -1.75, y: 0.62, z: 0.74 }
+        ];
+
+        drawPolyline(
+            floorOutline,
+            COLORS.secondary,
+            1,
+            true
+        );
+
+        for (
+            let index = 0;
+            index < 6;
+            index += 1
+        ) {
+            const z =
+                -0.65 + index * 0.26;
+
+            drawLine(
+                { x: 2.45, y: 0.58, z },
+                { x: 3.55, y: 0.35, z: z * 0.82 },
+                COLORS.primary,
+                0.75
+            );
+        }
+    }
+
+
+    /* -----------------------------------------------------
+       SIDE PODS
+       ----------------------------------------------------- */
+
+    function drawSidePods() {
+        [-1, 1].forEach((side) => {
+            const pod = [
+                {
+                    x: -0.3,
+                    y: -0.02,
+                    z: side * 0.65
+                },
+                {
+                    x: 0.45,
+                    y: -0.34,
+                    z: side * 1.05
+                },
+                {
+                    x: 1.65,
+                    y: -0.27,
+                    z: side * 0.98
+                },
+                {
+                    x: 2.55,
+                    y: -0.08,
+                    z: side * 0.62
+                },
+                {
+                    x: 1.7,
+                    y: 0.42,
+                    z: side * 0.65
+                },
+                {
+                    x: 0.3,
+                    y: 0.4,
+                    z: side * 0.72
+                }
+            ];
+
+            drawPolyline(
+                pod,
+                COLORS.primary,
+                1,
+                true
+            );
+
+            drawLine(
+                pod[0],
+                pod[3],
+                COLORS.secondary,
+                0.75
+            );
+
+            drawLine(
+                pod[1],
+                pod[4],
+                COLORS.secondary,
+                0.75
+            );
+
+            drawLine(
+                pod[2],
+                pod[5],
+                COLORS.secondary,
+                0.75
+            );
+        });
+    }
+
+
+    /* -----------------------------------------------------
+       COCKPIT AND HALO
+       ----------------------------------------------------- */
+
+    function drawCockpitAndHalo() {
+        const cockpit = [
+            { x: -0.35, y: -0.46, z: -0.42 },
+            { x: 0.42, y: -0.78, z: -0.34 },
+            { x: 1.05, y: -0.6, z: -0.29 },
+            { x: 1.25, y: -0.32, z: -0.36 },
+
+            { x: 1.25, y: -0.32, z: 0.36 },
+            { x: 1.05, y: -0.6, z: 0.29 },
+            { x: 0.42, y: -0.78, z: 0.34 },
+            { x: -0.35, y: -0.46, z: 0.42 }
+        ];
+
+        drawPolyline(
+            cockpit,
+            COLORS.accent,
+            1.2,
+            true
+        );
+
+        const haloTop = [
+            { x: 0.15, y: -1.05, z: -0.45 },
+            { x: 0.7, y: -1.18, z: -0.5 },
+            { x: 1.15, y: -1.02, z: -0.42 },
+
+            { x: 1.15, y: -1.02, z: 0.42 },
+            { x: 0.7, y: -1.18, z: 0.5 },
+            { x: 0.15, y: -1.05, z: 0.45 }
+        ];
+
+        drawPolyline(
+            haloTop,
+            COLORS.neutral,
+            1.35,
+            false
+        );
+
+        drawLine(
+            { x: 0.15, y: -1.05, z: -0.45 },
+            { x: 0.0, y: -0.4, z: -0.38 },
+            COLORS.neutral,
+            1.2
+        );
+
+        drawLine(
+            { x: 0.15, y: -1.05, z: 0.45 },
+            { x: 0.0, y: -0.4, z: 0.38 },
+            COLORS.neutral,
+            1.2
+        );
+
+        drawLine(
+            { x: 1.15, y: -1.02, z: -0.42 },
+            { x: 1.0, y: -0.38, z: -0.31 },
+            COLORS.neutral,
+            1.2
+        );
+
+        drawLine(
+            { x: 1.15, y: -1.02, z: 0.42 },
+            { x: 1.0, y: -0.38, z: 0.31 },
+            COLORS.neutral,
+            1.2
+        );
+
+        drawLine(
+            { x: 0.7, y: -1.18, z: 0 },
+            { x: 0.35, y: -0.34, z: 0 },
+            COLORS.neutral,
+            1.25
+        );
+    }
+
+
+    /* -----------------------------------------------------
+       SUSPENSION
+       ----------------------------------------------------- */
+
+    function drawSuspension() {
+        const axleConfigurations = [
+            {
+                x: -2.7,
+                bodyX: -1.7,
+                bodyY: 0.2
+            },
+            {
+                x: 2.65,
+                bodyX: 2.05,
+                bodyY: 0.05
+            }
+        ];
+
+        axleConfigurations.forEach((axle) => {
+            [-1, 1].forEach((side) => {
+                const wheelZ = side * 1.48;
+                const bodyZ = side * 0.55;
+
+                drawLine(
+                    {
+                        x: axle.bodyX,
+                        y: axle.bodyY,
+                        z: bodyZ
+                    },
+                    {
+                        x: axle.x,
+                        y: 0.62,
+                        z: wheelZ
+                    },
+                    COLORS.neutral,
+                    0.9
+                );
+
+                drawLine(
+                    {
+                        x: axle.bodyX + 0.35,
+                        y: 0.48,
+                        z: bodyZ
+                    },
+                    {
+                        x: axle.x,
+                        y: 0.85,
+                        z: wheelZ
+                    },
+                    COLORS.secondary,
+                    0.85
+                );
+
+                drawLine(
+                    {
+                        x: axle.bodyX - 0.18,
+                        y: -0.05,
+                        z: bodyZ
+                    },
+                    {
+                        x: axle.x,
+                        y: 0.7,
+                        z: wheelZ
+                    },
+                    COLORS.primary,
+                    0.85
+                );
+            });
+        });
+    }
+
+
+    /* -----------------------------------------------------
+       ENGINE COVER AND AIRBOX
+       ----------------------------------------------------- */
+
+    function drawEngineCover() {
+        const coverLeft = [
+            { x: 1.1, y: -0.45, z: -0.38 },
+            { x: 1.65, y: -0.92, z: -0.28 },
+            { x: 2.45, y: -0.72, z: -0.22 },
+            { x: 3.2, y: -0.2, z: -0.3 }
+        ];
+
+        const coverRight = coverLeft.map(
+            (point) => ({
+                x: point.x,
+                y: point.y,
+                z: -point.z
+            })
+        );
+
+        drawPolyline(
+            coverLeft,
+            COLORS.primary,
+            1.1
+        );
+
+        drawPolyline(
+            coverRight,
+            COLORS.primary,
+            1.1
+        );
+
+        for (
+            let index = 0;
+            index < coverLeft.length;
+            index += 1
+        ) {
+            drawLine(
+                coverLeft[index],
+                coverRight[index],
+                COLORS.secondary,
+                0.8
+            );
+        }
+
+        drawCircle(
+            {
+                x: 1.58,
+                y: -1.02,
+                z: 0
+            },
+            0.25,
+            "yz",
+            COLORS.accent,
+            1,
+            24
+        );
+    }
+
+
+    /* -----------------------------------------------------
+       REFERENCE AXES
+       ----------------------------------------------------- */
+
+    function drawAxes() {
+        drawLine(
+            { x: -5.4, y: 1.7, z: 0 },
+            { x: 5.1, y: 1.7, z: 0 },
+            COLORS.accent,
+            0.7
+        );
+
+        drawLine(
+            { x: 0, y: -2, z: 0 },
+            { x: 0, y: 2.1, z: 0 },
+            COLORS.primary,
+            0.7
+        );
+
+        drawLine(
+            { x: 0, y: 1.7, z: -2.2 },
+            { x: 0, y: 1.7, z: 2.2 },
+            COLORS.neutral,
+            0.7
+        );
+    }
+
+
+    /* -----------------------------------------------------
+       COMPLETE FORMULA CAR
+       ----------------------------------------------------- */
+
+    function drawFormulaCar() {
+        drawAxes();
+        drawFloor();
+        drawBody();
+        drawSidePods();
+        drawCockpitAndHalo();
+        drawEngineCover();
+        drawSuspension();
+        drawFrontWing();
+        drawRearWing();
+
+        drawWheel(-2.7, -1.48, true);
+        drawWheel(-2.7, 1.48, true);
+
+        drawWheel(2.65, -1.48, false);
+        drawWheel(2.65, 1.48, false);
+    }
+
+
+    /* -----------------------------------------------------
+       ANIMATION
+       ----------------------------------------------------- */
+
     function render(time) {
-        const delta =
-            Math.min((time - lastTime) / 1000, 0.05);
+        const delta = Math.min(
+            (time - lastTime) / 1000,
+            0.05
+        );
 
         lastTime = time;
 
         if (!pointerInside && !reducedMotion) {
-            targetRotationY += delta * 0.22;
+            targetRotationY += delta * 0.16;
         }
 
         rotationX +=
-            (targetRotationX - rotationX) * 0.06;
+            (targetRotationX - rotationX) * 0.055;
 
         rotationY +=
-            (targetRotationY - rotationY) * 0.06;
+            (targetRotationY - rotationY) * 0.055;
 
-        context.clearRect(0, 0, width, height);
+        context.clearRect(
+            0,
+            0,
+            width,
+            height
+        );
 
-        drawAssembly();
+        drawFormulaCar();
 
         requestAnimationFrame(render);
     }
 
+
+    /* -----------------------------------------------------
+       POINTER CONTROL
+       ----------------------------------------------------- */
 
     cadViewport.addEventListener(
         "pointermove",
@@ -775,10 +1699,11 @@ if (canvas && cadViewport) {
                 bounds.height;
 
             targetRotationY =
-                (normalizedX - 0.5) * 2.4;
+                (normalizedX - 0.5) * 2.5;
 
             targetRotationX =
-                (normalizedY - 0.5) * -1.6;
+                -0.3 +
+                (normalizedY - 0.5) * -1.2;
         },
         { passive: true }
     );
@@ -796,7 +1721,8 @@ if (canvas && cadViewport) {
         "pointerleave",
         () => {
             pointerInside = false;
-            targetRotationX = -0.52;
+
+            targetRotationX = -0.26;
         }
     );
 
@@ -810,7 +1736,6 @@ if (canvas && cadViewport) {
     resizeCanvas();
     requestAnimationFrame(render);
 }
-
 
 /* =========================================================
    KEYBOARD NAVIGATION
